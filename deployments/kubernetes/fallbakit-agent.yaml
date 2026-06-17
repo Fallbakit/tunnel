@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fallbakit-agent
+type: Opaque
+stringData:
+  runner-api-key: "rr_from_dashboard"
+  local-api-key: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fallbakit-agent
+data:
+  FALLBAKIT_BASE_URL: "https://api.fallbakit.com"
+  FALLBAKIT_LOCAL_PROVIDER: "ollama"
+  FALLBAKIT_LOCAL_BASE_URL: "http://ollama.default.svc.cluster.local:11434"
+  FALLBAKIT_RUNNER_ID: "runner_from_dashboard"
+  FALLBAKIT_METRICS_ADDR: ":9093"
+  FALLBAKIT_LOG_FORMAT: "json"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fallbakit-agent
+  labels:
+    app.kubernetes.io/name: fallbakit-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fallbakit-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fallbakit-agent
+    spec:
+      containers:
+        - name: agent
+          image: ghcr.io/fallbakit/fallbakit-agent:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fallbakit-agent
+          env:
+            - name: FALLBAKIT_RUNNER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fallbakit-agent
+                  key: runner-api-key
+            - name: FALLBAKIT_LOCAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fallbakit-agent
+                  key: local-api-key
+                  optional: true
+          ports:
+            - name: metrics
+              containerPort: 9093
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fallbakit-agent-metrics
+spec:
+  selector:
+    app.kubernetes.io/name: fallbakit-agent
+  ports:
+    - name: metrics
+      port: 9093
+      targetPort: metrics

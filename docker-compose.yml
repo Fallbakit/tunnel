@@ -1,0 +1,32 @@
+services:
+  fallbakit-agent:
+    image: ghcr.io/fallbakit/fallbakit-agent:latest
+    build: .
+    environment:
+      FALLBAKIT_RUNNER_API_KEY: ${FALLBAKIT_RUNNER_API_KEY:?set FALLBAKIT_RUNNER_API_KEY}
+      FALLBAKIT_BASE_URL: ${FALLBAKIT_BASE_URL:-https://api.fallbakit.com}
+      FALLBAKIT_LOCAL_PROVIDER: ${FALLBAKIT_LOCAL_PROVIDER:-ollama}
+      FALLBAKIT_LOCAL_BASE_URL: ${FALLBAKIT_LOCAL_BASE_URL:-http://host.docker.internal:11434}
+      FALLBAKIT_LOCAL_API_KEY: ${FALLBAKIT_LOCAL_API_KEY:-}
+      FALLBAKIT_RUNNER_ID: ${FALLBAKIT_RUNNER_ID:?set FALLBAKIT_RUNNER_ID}
+      FALLBAKIT_METRICS_ADDR: :9093
+      FALLBAKIT_LOG_FORMAT: json
+    ports:
+      - "9093:9093"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Optional: run Ollama in the same Compose project instead of on the host.
+  # Set FALLBAKIT_LOCAL_PROVIDER=ollama and FALLBAKIT_LOCAL_BASE_URL=http://ollama:11434 when enabling this service.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["with-ollama"]
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+volumes:
+  ollama-data:

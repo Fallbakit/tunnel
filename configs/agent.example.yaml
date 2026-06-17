@@ -1,0 +1,30 @@
+# Fallbakit agent configuration.
+# CLI flags override environment variables; environment variables override this file.
+
+api_key: "rr_from_dashboard"
+base_url: "https://api.fallbakit.com"
+local_provider: "ollama" # ollama, omlx, or vllm
+local_base_url: "http://localhost:11434"
+local_api_key: "" # Optional; forwarded only from the agent to the local runtime.
+
+# Required. Copy this from the dashboard runner setup flow.
+runner_id: "runner_from_dashboard"
+agent_id: "workstation-01"
+
+# Optional explicit tunnel URL. Leave empty to use the URL returned by bootstrap.
+tunnel_url: ""
+
+# Runtime behavior.
+metrics_addr: ":9093"
+log_format: "json"
+service_name: "fallbakit-agent"
+min_backoff: "1s"
+max_backoff: "30s"
+connect_timeout: "10s"
+local_timeout: "3s"
+ollama_timeout: "3s" # Deprecated alias for local_timeout.
+
+# Signed update checks are opt-in. Process restart remains Docker, Kubernetes, or systemd responsibility.
+update_url: ""
+update_public_key: ""
+update_check: false
