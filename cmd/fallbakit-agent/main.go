@@ -171,6 +171,7 @@ func main() {
 		Status:          status,
 		MinBackoff:      *minBackoff,
 		MaxBackoff:      *maxBackoff,
+		Logger:          logger,
 	})
 	if err != nil && ctx.Err() == nil {
 		logger.Error("agent stopped", "error", err)
@@ -206,10 +207,14 @@ func serveMetrics(ctx context.Context, addr, localProvider, localBaseURL string,
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		connected, _, _ := status.Snapshot()
+		connected, _, lastErr := status.Snapshot()
 		if !connected {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte("tunnel disconnected\n"))
+			msg := "tunnel disconnected\n"
+			if lastErr != "" {
+				msg = "tunnel disconnected: " + lastErr + "\n"
+			}
+			_, _ = w.Write([]byte(msg))
 			return
 		}
 		if err := probeLocalProvider(r.Context(), localProvider, localBaseURL, localTimeout); err != nil {
