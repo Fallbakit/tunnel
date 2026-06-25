@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"sync"
@@ -22,6 +23,7 @@ type AgentRunnerConfig struct {
 	Status          *AgentStatus
 	MinBackoff      time.Duration
 	MaxBackoff      time.Duration
+	Logger          *slog.Logger
 }
 
 type Dialer func(context.Context, string, *tls.Config) (*yamux.Session, error)
@@ -102,6 +104,11 @@ func RunAgentWithAuthDialer(ctx context.Context, cfg AgentRunnerConfig, dialer A
 		maxBackoff = minBackoff
 	}
 
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	backoff := minBackoff
 	for {
 		if err := ctx.Err(); err != nil {
@@ -114,6 +121,7 @@ func RunAgentWithAuthDialer(ctx context.Context, cfg AgentRunnerConfig, dialer A
 			bootstrap, err := cfg.BootstrapClient.Bootstrap(ctx)
 			if err != nil {
 				cfg.Status.SetConnected(false, err)
+				logger.Warn("tunnel bootstrap failed, retrying", "error", err, "base_url", cfg.BootstrapClient.BaseURL)
 				if sleepErr := sleepContext(ctx, jitter(backoff)); sleepErr != nil {
 					return sleepErr
 				}
@@ -127,6 +135,7 @@ func RunAgentWithAuthDialer(ctx context.Context, cfg AgentRunnerConfig, dialer A
 		session, err := dialer(ctx, endpoint, cfg.TLSConfig, headers)
 		if err != nil {
 			cfg.Status.SetConnected(false, err)
+			logger.Warn("tunnel dial failed, retrying", "error", err, "endpoint", endpoint)
 			if sleepErr := sleepContext(ctx, jitter(backoff)); sleepErr != nil {
 				return sleepErr
 			}
@@ -136,6 +145,7 @@ func RunAgentWithAuthDialer(ctx context.Context, cfg AgentRunnerConfig, dialer A
 
 		backoff = minBackoff
 		cfg.Status.SetConnected(true, nil)
+		logger.Info("tunnel connected", "endpoint", endpoint)
 		agent, err := NewAgentWithLocalAPIKey(session, localBaseURL, cfg.LocalAPIKey)
 		if err != nil {
 			_ = session.Close()
@@ -149,6 +159,7 @@ func RunAgentWithAuthDialer(ctx context.Context, cfg AgentRunnerConfig, dialer A
 			return ctx.Err()
 		}
 		if err != nil {
+			logger.Warn("tunnel disconnected, reconnecting", "error", err)
 			if sleepErr := sleepContext(ctx, jitter(backoff)); sleepErr != nil {
 				return sleepErr
 			}
